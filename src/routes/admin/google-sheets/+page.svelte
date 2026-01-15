@@ -17,10 +17,25 @@
   let showHidden = false;
 
   onMount(async () => {
-    scriptUrl = localStorage.getItem(SCRIPT_URL_KEY) || '';
-    spreadsheetId = localStorage.getItem(SPREADSHEET_ID_KEY) || '';
+    await loadSettings();
     await loadCache();
   });
+
+  async function loadSettings() {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/admin/google-sheets/settings', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const res = await response.json();
+      if (res.success) {
+        scriptUrl = res.scriptUrl || localStorage.getItem(SCRIPT_URL_KEY) || '';
+        spreadsheetId = res.spreadsheetId || localStorage.getItem(SPREADSHEET_ID_KEY) || '';
+      }
+    } catch (err) {
+      console.error('Failed to load settings:', err);
+    }
+  }
 
   async function loadCache() {
     if (!scriptUrl) {
@@ -52,11 +67,29 @@
     }
   }
 
-  function saveConfig() {
-    localStorage.setItem(SCRIPT_URL_KEY, scriptUrl);
-    localStorage.setItem(SPREADSHEET_ID_KEY, spreadsheetId);
-    showToast('Configuration saved locally', 'success');
-    loadCache(); // Re-load data for the new source
+  async function saveConfig() {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/admin/google-sheets/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ scriptUrl, spreadsheetId })
+      });
+      const res = await response.json();
+      if (res.success) {
+        localStorage.setItem(SCRIPT_URL_KEY, scriptUrl);
+        localStorage.setItem(SPREADSHEET_ID_KEY, spreadsheetId);
+        showToast('Settings saved to database', 'success');
+        loadCache();
+      } else {
+        showToast(res.message || 'Save failed', 'error');
+      }
+    } catch (err) {
+      showToast('Connection error', 'error');
+    }
   }
 
   async function fetchData() {

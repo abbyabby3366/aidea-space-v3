@@ -189,6 +189,16 @@
 									Administrators
 								</a>
 								<a
+									href="/admin/staff"
+									class="block rounded-md px-3 py-2 text-base font-medium {currentPath ===
+									'/admin/staff'
+										? 'bg-purple-100 text-purple-700'
+										: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}"
+									onclick={() => (isMenuOpen = false)}
+								>
+									Staff
+								</a>
+								<a
 									href="/admin/whatsapp"
 									class="block rounded-md px-3 py-2 text-base font-medium {currentPath ===
 									'/admin/whatsapp'
@@ -261,6 +271,14 @@
 							: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 					>
 						Administrators
+					</a>
+					<a
+						href="/admin/staff"
+						class="border-b-2 px-1 py-2 text-sm font-medium {currentPath === '/admin/staff'
+							? 'border-purple-500 text-purple-600'
+							: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+					>
+						Staff
 					</a>
 					<a
 						href="/admin/whatsapp"

@@ -14,50 +14,75 @@
 	// Password visibility
 	let showPassword = false;
 
-	onMount(() => {
-		// Check if already logged in
-		const token = localStorage.getItem('authToken');
-		if (token) {
-			goto('/admin'); // TODO: Implement proper redirect based on user role
-		}
-	});
+  function parseJwt(token: string) {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      return null;
+    }
+  }
 
-	async function handleLogin() {
-		if (!formData.identifier || !formData.password) {
-			errorMessage = 'Please enter both identifier and password';
-			return;
-		}
+  function getRedirectPath(role: string) {
+    if (role === 'admin') return '/admin/google-sheets';
+    if (role === 'staff') return '/staff/jobs';
+    return '/';
+  }
 
-		isLoading = true;
-		errorMessage = '';
+  onMount(() => {
+    // Check if already logged in
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      const decoded = parseJwt(token);
+      if (decoded && decoded.role) {
+        goto(getRedirectPath(decoded.role));
+      } else {
+        goto('/admin'); // Fallback
+      }
+    }
+  });
 
-		try {
-			const response = await fetch('/api/auth', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					identifier: formData.identifier,
-					password: formData.password
-				})
-			});
+  async function handleLogin() {
+    if (!formData.identifier || !formData.password) {
+      errorMessage = 'Please enter both identifier and password';
+      return;
+    }
 
-			const data = await response.json();
+    isLoading = true;
+    errorMessage = '';
 
-			if (data.success) {
-				localStorage.setItem('authToken', data.token);
-				goto('/admin');
-			} else {
-				errorMessage = data.message || 'Login failed';
-			}
-		} catch (error) {
-			console.error('Login error:', error);
-			errorMessage = 'An error occurred during login';
-		} finally {
-			isLoading = false;
-		}
-	}
+    try {
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          identifier: formData.identifier,
+          password: formData.password
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        localStorage.setItem('authToken', data.token);
+        const role = data.user?.role || 'user';
+        goto(getRedirectPath(role));
+      } else {
+        errorMessage = data.message || 'Login failed';
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      errorMessage = 'An error occurred during login';
+    } finally {
+      isLoading = false;
+    }
+  }
 
 	function handleKeyPress(event: KeyboardEvent) {
 		if (event.key === 'Enter') {

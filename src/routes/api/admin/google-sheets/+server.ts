@@ -32,19 +32,44 @@ export const GET: RequestHandler = async ({ request, url }) => {
       return json({ success: false, message: 'Invalid or expired token' }, { status: 401 });
     }
 
+    const isAuthorized = decoded.role === 'admin' || decoded.role === 'staff' || (decoded as any).isAdmin;
+    if (!isAuthorized) {
+      return json({ success: false, message: 'Forbidden' }, { status: 403 });
+    }
+
     // 2. Identify Source
     const scriptUrl = url.searchParams.get('scriptUrl');
     const spreadsheetId = url.searchParams.get('spreadsheetId') || '';
 
+    const db = await connectDB();
+    const cache = db.collection(COLLECTION_NAME);
+
     if (!scriptUrl) {
-      return json([]); // Return empty if no source specified yet
+      // Return UNIQUE cached data for staff to browse
+      // Deduplicate by sheetName, keeping the most recent entry's data
+      const allEntries = await cache.find({}).sort({ updatedAt: -1 }).toArray();
+      const uniqueSheets = new Map();
+      
+      allEntries.forEach((entry: any) => {
+        const hiddenSheetNames = entry.hiddenSheetNames || [];
+        entry.data.forEach((sheet: any) => {
+          if (!uniqueSheets.has(sheet.sheetName)) {
+            uniqueSheets.set(sheet.sheetName, {
+              ...sheet,
+              hidden: hiddenSheetNames.includes(sheet.sheetName),
+              scriptUrl: entry.scriptUrl,
+              spreadsheetId: entry.spreadsheetId
+            });
+          }
+        });
+      });
+      
+      return json(Array.from(uniqueSheets.values()));
     }
 
     const sourceKey = getSourceKey(scriptUrl, spreadsheetId);
 
     // 3. Fetch from DB
-    const db = await connectDB();
-    const cache = db.collection(COLLECTION_NAME);
     const entry = await cache.findOne({ sourceKey });
 
     const sheets = entry?.data || [];
@@ -53,7 +78,9 @@ export const GET: RequestHandler = async ({ request, url }) => {
     // Merge hidden status into sheets
     const responseData = sheets.map((sheet: any) => ({
       ...sheet,
-      hidden: hiddenSheetNames.includes(sheet.sheetName)
+      hidden: hiddenSheetNames.includes(sheet.sheetName),
+      scriptUrl,
+      spreadsheetId
     }));
 
     return json(responseData);
@@ -90,7 +117,9 @@ export const POST: RequestHandler = async ({ request }) => {
     }
 
     const isAdmin = user.email === config.admin.email || user.isAdmin === true || user.phone === config.admin.phone || user.role === 'admin';
-    if (!isAdmin) {
+    const isStaff = user.role === 'staff';
+
+    if (!isAdmin && !isStaff) {
       return json({ success: false, message: 'Forbidden' }, { status: 403 });
     }
 
@@ -155,6 +184,9 @@ export const POST: RequestHandler = async ({ request }) => {
     } 
 
     if (action === 'toggleHide') {
+      if (!isAdmin) {
+        return json({ success: false, message: 'Only admins can toggle hide status' }, { status: 403 });
+      }
       const { sheetName, hidden } = payload;
       if (!sheetName) return json({ success: false, message: 'Missing sheetName' }, { status: 400 });
 

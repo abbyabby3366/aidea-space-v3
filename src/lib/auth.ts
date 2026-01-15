@@ -7,7 +7,7 @@ export interface JWTPayload {
 	userId: string;
 	email?: string;
 	phone?: string;
-	role: 'admin' | 'user';
+	role: 'admin' | 'user' | 'staff';
 	iat: number;
 	exp: number;
 }
@@ -16,7 +16,7 @@ export interface User {
 	id: string;
 	email?: string;
 	phone?: string;
-	role: 'admin' | 'user';
+	role: 'admin' | 'user' | 'staff';
 	createdAt: Date;
 	// Keeping isAdmin for backward compatibility logic temporarily if needed, 
 	// but user requested adding 'role'. 

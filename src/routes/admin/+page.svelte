@@ -1,9 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
+	import { goto } from '$app/navigation';
 
 	let isAdmin = false;
 	let loading = true;
+
+	function handleReturnHome() {
+		if (browser) {
+			localStorage.removeItem('authToken');
+			localStorage.removeItem('user');
+			goto('/auth');
+		}
+	}
 
 	onMount(async () => {
 		if (browser) {
@@ -56,12 +65,12 @@
 				<p class="mt-2 text-sm text-gray-600">
 					You don't have permission to access the admin panel.
 				</p>
-				<a
-					href="/"
+				<button
+					on:click={handleReturnHome}
 					class="mt-4 inline-flex items-center rounded-md border border-transparent bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
 				>
 					Return to Home
-				</a>
+				</button>
 			</div>
 		</div>
 	</div>

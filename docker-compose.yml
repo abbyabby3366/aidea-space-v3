@@ -1,0 +1,19 @@
+services:
+  web:
+    build: .
+    ports:
+      - "3181:3181"
+    env_file:
+      - .env
+    depends_on:
+      - whatsapp
+
+  whatsapp:
+    build:
+      context: ./whatsapp-server
+      dockerfile: Dockerfile
+    ports:
+      - "3182:3182"
+    env_file:
+      - .env
+    restart: unless-stopped

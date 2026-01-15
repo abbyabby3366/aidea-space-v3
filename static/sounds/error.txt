@@ -1,0 +1,3 @@
+# Placeholder for error sound
+# Replace this file with actual error.mp3 or error.wav
+# This file is just a placeholder to prevent 404 errors

@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>WhatsApp Server Test</title>
+		<style>
+			body {
+				font-family:
+					-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 20px;
+				line-height: 1.6;
+				color: #333;
+			}
+			h1,
+			h2,
+			h3 {
+				color: #2c3e50;
+			}
+			.card {
+				border: 1px solid #ddd;
+				border-radius: 8px;
+				padding: 20px;
+				margin-bottom: 20px;
+				box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+			}
+			.status-badge {
+				display: inline-block;
+				padding: 4px 8px;
+				border-radius: 4px;
+				font-weight: bold;
+				text-transform: uppercase;
+				font-size: 0.9em;
+			}
+			.status-connected {
+				background-color: #d4edda;
+				color: #155724;
+			}
+			.status-disconnected {
+				background-color: #f8d7da;
+				color: #721c24;
+			}
+			.status-connecting {
+				background-color: #fff3cd;
+				color: #856404;
+			}
+			button {
+				cursor: pointer;
+				padding: 8px 16px;
+				border-radius: 4px;
+				border: none;
+				font-size: 14px;
+				margin-right: 8px;
+				margin-bottom: 8px;
+				transition: opacity 0.2s;
+			}
+			button:hover {
+				opacity: 0.9;
+			}
+			button:disabled {
+				opacity: 0.5;
+				cursor: not-allowed;
+			}
+			.btn-primary {
+				background-color: #007bff;
+				color: white;
+			}
+			.btn-success {
+				background-color: #28a745;
+				color: white;
+			}
+			.btn-danger {
+				background-color: #dc3545;
+				color: white;
+			}
+			.btn-warning {
+				background-color: #ffc107;
+				color: black;
+			}
+			input,
+			textarea {
+				width: 100%;
+				padding: 8px;
+				margin-bottom: 10px;
+				border: 1px solid #ddd;
+				border-radius: 4px;
+				box-sizing: border-box;
+			}
+			.response-area {
+				background-color: #f8f9fa;
+				border: 1px solid #e9ecef;
+				border-radius: 4px;
+				padding: 10px;
+				font-family: monospace;
+				white-space: pre-wrap;
+				margin-top: 10px;
+				max-height: 200px;
+				overflow-y: auto;
+				font-size: 12px;
+			}
+			.grid {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 20px;
+			}
+			@media (max-width: 600px) {
+				.grid {
+					grid-template-columns: 1fr;
+				}
+			}
+			pre {
+				background: #eee;
+				padding: 10px;
+				border-radius: 4px;
+				overflow-x: auto;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>WhatsApp Server Dashboard</h1>
+
+		<div class="card">
+			<h2>Status</h2>
+			<div id="status-display">Loading...</div>
+			<div id="qr-container" style="margin-top: 15px; display: none">
+				<h3>WhatsApp QR Code</h3>
+				<p>Scan this QR code with your WhatsApp mobile app to authenticate:</p>
+				<div id="qr-image-container" style="margin: 15px 0; text-align: center">
+					<img
+						id="qr-image"
+						src=""
+						alt="QR Code"
+						style="max-width: 256px; border: 2px solid #ddd; border-radius: 8px; display: none"
+					/>
+					<p id="qr-loading" style="display: none">Generating QR code...</p>
+					<p id="qr-error" style="display: none; color: #dc3545">
+						Failed to generate QR code image
+					</p>
+				</div>
+				<details style="margin-top: 10px">
+					<summary style="cursor: pointer; color: #666">
+						Show QR Code Data (for manual generation)
+					</summary>
+					<textarea id="qr-data" rows="3" readonly style="margin-top: 10px"></textarea>
+				</details>
+			</div>
+			<div style="margin-top: 20px">
+				<button onclick="startWhatsapp()" class="btn-success">Start WhatsApp</button>
+				<button onclick="stopWhatsapp()" class="btn-danger">Stop WhatsApp</button>
+				<button onclick="deleteAuth()" class="btn-danger">Delete Auth</button>
+				<button onclick="refreshStatus()" class="btn-primary">Refresh Status</button>
+			</div>
+			<div id="action-response" class="response-area" style="display: none"></div>
+		</div>
+
+		<div class="grid">
+			<div class="card">
+				<h3>Pairing Code</h3>
+				<p>Use this if you can't scan the QR code.</p>
+				<input type="text" id="pairing-phone" placeholder="Phone Number (e.g., 60123456789)" />
+				<button onclick="requestPairingCode()" class="btn-primary">Get Pairing Code</button>
+				<div id="pairing-response" class="response-area" style="display: none"></div>
+			</div>
+
+			<div class="card">
+				<h3>Test Message</h3>
+				<input type="text" id="msg-phone" placeholder="Phone Number (e.g., 60123456789)" />
+				<textarea id="msg-content" rows="3" placeholder="Hello from server test!"></textarea>
+				<button onclick="sendMessage()" class="btn-primary">Send Message</button>
+				<div id="message-response" class="response-area" style="display: none"></div>
+			</div>
+		</div>
+
+		<script>
+			const API_URL = ''; // Relative path since we are serving from the same server
+
+			async function apiCall(endpoint, method = 'GET', body = null) {
+				const responseDiv = document.getElementById('action-response');
+				responseDiv.style.display = 'block';
+				responseDiv.textContent = `Calling ${endpoint}...`;
+
+				try {
+					const options = {
+						method,
+						headers: { 'Content-Type': 'application/json' }
+					};
+					if (body) options.body = JSON.stringify(body);
+
+					const res = await fetch(endpoint, options);
+					const data = await res.json();
+
+					responseDiv.textContent = `${method} ${endpoint}\nStatus: ${res.status}\nResponse: ${JSON.stringify(data, null, 2)}`;
+
+					// Refresh status after any action
+					if (method !== 'GET') {
+						setTimeout(refreshStatus, 1000);
+					}
+
+					return data;
+				} catch (error) {
+					responseDiv.textContent = `Error: ${error.message}`;
+					return null;
+				}
+			}
+
+			async function refreshStatus() {
+				try {
+					const res = await fetch('/whatsapp-status');
+					const data = await res.json();
+
+					const statusDiv = document.getElementById('status-display');
+					const statusClass =
+						data.status === 'connected'
+							? 'status-connected'
+							: data.status === 'disconnected' || data.status === 'stopped'
+								? 'status-disconnected'
+								: 'status-connecting';
+
+					let html = `<div>Status: <span class="status-badge ${statusClass}">${data.status}</span></div>`;
+
+					if (data.clientInfo) {
+						html += `<div>Connected: ${data.clientInfo.isConnected}</div>`;
+						if (data.clientInfo.phoneNumber) {
+							html += `<div>Phone: ${data.clientInfo.phoneNumber}</div>`;
+						}
+					}
+
+					statusDiv.innerHTML = html;
+
+					// Handle QR Code
+					const qrContainer = document.getElementById('qr-container');
+					const qrData = document.getElementById('qr-data');
+					const qrImage = document.getElementById('qr-image');
+					const qrLoading = document.getElementById('qr-loading');
+					const qrError = document.getElementById('qr-error');
+
+					if (data.qrCode) {
+						qrContainer.style.display = 'block';
+						qrData.value = data.qrCode;
+
+						// Generate QR code image using CDN
+						qrImage.style.display = 'none';
+						qrLoading.style.display = 'block';
+						qrError.style.display = 'none';
+
+						// Use goqr.me CDN to generate QR code image
+						const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(data.qrCode)}`;
+
+						qrImage.onload = function () {
+							qrLoading.style.display = 'none';
+							qrImage.style.display = 'block';
+							console.log('QR code image loaded successfully');
+						};
+
+						qrImage.onerror = function () {
+							qrLoading.style.display = 'none';
+							qrError.style.display = 'block';
+							console.error('Failed to load QR code image:', qrUrl);
+						};
+
+						console.log('Setting QR image src to:', qrUrl);
+						qrImage.src = qrUrl;
+					} else {
+						qrContainer.style.display = 'none';
+					}
+				} catch (error) {
+					console.error('Failed to fetch status', error);
+					document.getElementById('status-display').textContent = 'Error fetching status';
+				}
+			}
+
+			function startWhatsapp() {
+				apiCall('/start-whatsapp', 'POST');
+			}
+			function stopWhatsapp() {
+				apiCall('/stop-whatsapp', 'POST');
+			}
+			function deleteAuth() {
+				if (
+					confirm('Are you sure? This will delete the session and you will need to scan QR again.')
+				) {
+					apiCall('/delete-auth', 'POST');
+				}
+			}
+
+			async function requestPairingCode() {
+				const phone = document.getElementById('pairing-phone').value;
+				if (!phone) return alert('Please enter phone number');
+
+				const resDiv = document.getElementById('pairing-response');
+				resDiv.style.display = 'block';
+				resDiv.textContent = 'Requesting...';
+
+				try {
+					const res = await fetch('/request-pairing-code', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ phoneNumber: phone })
+					});
+					const data = await res.json();
+					resDiv.textContent = JSON.stringify(data, null, 2);
+				} catch (e) {
+					resDiv.textContent = 'Error: ' + e.message;
+				}
+			}
+
+			async function sendMessage() {
+				const phone = document.getElementById('msg-phone').value;
+				const message = document.getElementById('msg-content').value;
+
+				if (!phone || !message) return alert('Please enter phone and message');
+
+				const resDiv = document.getElementById('message-response');
+				resDiv.style.display = 'block';
+				resDiv.textContent = 'Sending...';
+
+				try {
+					const res = await fetch('/send-message', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ phoneNumber: phone, message })
+					});
+					const data = await res.json();
+					resDiv.textContent = JSON.stringify(data, null, 2);
+				} catch (e) {
+					resDiv.textContent = 'Error: ' + e.message;
+				}
+			}
+
+			// Poll status every 5 seconds
+			refreshStatus();
+			setInterval(refreshStatus, 5000);
+		</script>
+	</body>
+</html>

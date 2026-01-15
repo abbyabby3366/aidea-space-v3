@@ -1,0 +1,69 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/forms';
+@plugin '@tailwindcss/typography';
+
+/* Aceternity UI CSS Variables */
+:root {
+	--blue-500: 59 130 246;
+	--cyan-500: 6 182 212;
+	--indigo-500: 99 102 241;
+	--neutral-300: 209 213 219;
+	--neutral-400: 156 163 175;
+	--neutral-600: 75 85 99;
+	--neutral-700: 55 65 81;
+	--neutral-800: 31 41 55;
+	--slate-900: 15 23 42;
+	--white: 255 255 255;
+	--zinc-800: 39 39 42;
+	--zinc-900: 24 24 27;
+}
+
+
+/* Ensure smooth transitions */
+* {
+	transition:
+		background-color 0.2s ease,
+		color 0.2s ease;
+}
+
+/* Critical navbar styles to prevent flashing */
+.navbar {
+	background: linear-gradient(135deg, rgba(15, 15, 35, 0.95), rgba(26, 26, 46, 0.95)) !important;
+	backdrop-filter: blur(16px) !important;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+	position: sticky !important;
+	top: 0 !important;
+	z-index: 1000 !important;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Star Border animations */
+@keyframes star-movement-bottom {
+	0% {
+		transform: translate(0%, 0%);
+		opacity: 1;
+	}
+	100% {
+		transform: translate(-100%, 0%);
+		opacity: 0;
+	}
+}
+
+@keyframes star-movement-top {
+	0% {
+		transform: translate(0%, 0%);
+		opacity: 1;
+	}
+	100% {
+		transform: translate(100%, 0%);
+		opacity: 0;
+	}
+}
+
+.animate-star-movement-bottom {
+	animation: star-movement-bottom linear infinite alternate;
+}
+
+.animate-star-movement-top {
+	animation: star-movement-top linear infinite alternate;
+}

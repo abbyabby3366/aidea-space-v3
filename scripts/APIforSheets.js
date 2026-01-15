@@ -73,13 +73,12 @@ function fetchSheetsData(spreadsheetId) {
 }
 
 /**
- * Updates 10 values for a specific item in a sheet.
+ * Updates multiple items in a specific sheet.
  * @param {string} sheetName Name of the sheet.
- * @param {number} rowIndex The 1-based row index to update.
- * @param {Array<any>} values Array of 10 values to write to K:T.
+ * @param {Array<{rowIndex: number, values: Array<any>}>} updates List of rows to update.
  * @param {string} [spreadsheetId] Optional spreadsheet ID.
  */
-function updateItemData(sheetName, rowIndex, values, spreadsheetId) {
+function updateSheetData(sheetName, updates, spreadsheetId) {
   const ss = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(sheetName);
   
@@ -87,16 +86,21 @@ function updateItemData(sheetName, rowIndex, values, spreadsheetId) {
     throw new Error(`Sheet "${sheetName}" not found.`);
   }
 
-  if (!Array.isArray(values) || values.length !== 10) {
-    throw new Error("Values must be an array of exactly 10 elements.");
+  if (!Array.isArray(updates)) {
+    throw new Error("Updates must be an array.");
   }
 
-  // Column 11 is K. Update 1 row, 10 columns.
-  sheet.getRange(rowIndex, 11, 1, 10).setValues([values]);
+  // To be efficient, we could group contiguous rows, 
+  // but for 25 rows, individual updates are usually fine in GAS.
+  updates.forEach(update => {
+    if (update.rowIndex && Array.isArray(update.values) && update.values.length === 10) {
+      sheet.getRange(update.rowIndex, 11, 1, 10).setValues([update.values]);
+    }
+  });
   
   return {
     success: true,
-    message: `Updated ${sheetName} at row ${rowIndex}`
+    message: `Updated ${updates.length} items in ${sheetName}`
   };
 }
 
@@ -116,7 +120,12 @@ function doPost(e) {
         result = fetchSheetsData(spreadsheetId);
         break;
       case 'update':
-        result = updateItemData(payload.sheetName, payload.rowIndex, payload.values, spreadsheetId);
+        // Support legacy single item update by wrapping it
+        if (payload.rowIndex) {
+          result = updateSheetData(payload.sheetName, [{ rowIndex: payload.rowIndex, values: payload.values }], spreadsheetId);
+        } else {
+          result = updateSheetData(payload.sheetName, payload.updates, spreadsheetId);
+        }
         break;
       default:
         throw new Error(`Unknown action: ${action}`);

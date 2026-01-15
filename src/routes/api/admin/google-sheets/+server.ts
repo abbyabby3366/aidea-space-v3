@@ -5,6 +5,64 @@ import { connectDB } from '$lib/mongodb';
 import { ObjectId } from 'mongodb';
 import { config } from '$lib/config';
 
+const COLLECTION_NAME = 'google_sheets_cache';
+
+/**
+ * Generates a unique key for a specific script/spreadsheet combination.
+ */
+function getSourceKey(scriptUrl: string, spreadsheetId: string = '') {
+  // Simple hash or concatenated string to differentiate sources
+  return Buffer.from(`${scriptUrl.trim()}|${spreadsheetId.trim()}`).toString('base64');
+}
+
+/**
+ * GET Handler: Fetches cached data for a specific source from MongoDB.
+ */
+export const GET: RequestHandler = async ({ request, url }) => {
+  try {
+    // 1. Verify Admin Status
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return json({ success: false, message: 'No token provided' }, { status: 401 });
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return json({ success: false, message: 'Invalid or expired token' }, { status: 401 });
+    }
+
+    // 2. Identify Source
+    const scriptUrl = url.searchParams.get('scriptUrl');
+    const spreadsheetId = url.searchParams.get('spreadsheetId') || '';
+
+    if (!scriptUrl) {
+      return json([]); // Return empty if no source specified yet
+    }
+
+    const sourceKey = getSourceKey(scriptUrl, spreadsheetId);
+
+    // 3. Fetch from DB
+    const db = await connectDB();
+    const cache = db.collection(COLLECTION_NAME);
+    const entry = await cache.findOne({ sourceKey });
+
+    const sheets = entry?.data || [];
+    const hiddenSheetNames = entry?.hiddenSheetNames || [];
+
+    // Merge hidden status into sheets
+    const responseData = sheets.map((sheet: any) => ({
+      ...sheet,
+      hidden: hiddenSheetNames.includes(sheet.sheetName)
+    }));
+
+    return json(responseData);
+  } catch (error: any) {
+    console.error('Fetch Cache Error:', error);
+    return json({ success: false, message: error.message || 'Internal server error' }, { status: 500 });
+  }
+};
+
 export const POST: RequestHandler = async ({ request }) => {
   try {
     // 1. Verify Admin Status
@@ -38,59 +96,133 @@ export const POST: RequestHandler = async ({ request }) => {
 
     // 2. Extract Proxy Data
     const body = await request.json();
-    let { scriptUrl, ...payload } = body;
+    let { scriptUrl, action, spreadsheetId = '', ...payload } = body;
 
     if (!scriptUrl) {
       return json({ success: false, message: 'Missing scriptUrl' }, { status: 400 });
     }
     
     scriptUrl = scriptUrl.trim();
+    spreadsheetId = spreadsheetId.trim();
+    const sourceKey = getSourceKey(scriptUrl, spreadsheetId);
+    const cache = db.collection(COLLECTION_NAME);
 
-    // 3. Proxy request to Google Apps Script
-    console.log('Proxying to Google Script:', scriptUrl);
-    console.log('Payload:', JSON.stringify(payload));
+    // 3. Handle Actions
+    if (action === 'fetch') {
+      console.log('Fetching fresh data from Google Script:', scriptUrl);
+      const googleResponse = await fetch(scriptUrl, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'fetch', spreadsheetId, ...payload })
+      });
 
-    // Match the Node test script exactly: No custom headers, default redirect behavior
-    const googleResponse = await fetch(scriptUrl, {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    });
-
-    const responseText = await googleResponse.text();
-    console.log('Google Response Status:', googleResponse.status);
-    console.log('Google Response Content-Type:', googleResponse.headers.get('content-type'));
-    
-    if (!googleResponse.ok) {
-      console.error('Google Response Error Body:', responseText.substring(0, 500));
-      return json({ 
-        success: false, 
-        message: `Google Script error (${googleResponse.status})`,
-        details: responseText.substring(0, 200)
-      }, { status: googleResponse.status });
-    }
-
-    // Try to parse as JSON
-    try {
-      const result = JSON.parse(responseText);
-      console.log('Successfully parsed JSON response');
-      return json(result);
-    } catch (e) {
-      console.error('Failed to parse Google Script response as JSON. Body snippet:', responseText.substring(0, 500));
+      const responseText = await googleResponse.text();
       
-      if (responseText.includes('<!DOCTYPE') || responseText.includes('<html')) {
-        return json({ 
-          success: false, 
-          message: 'Received HTML instead of JSON. Check script deployment settings.',
-          debug: responseText.substring(0, 100)
-        }, { status: 502 });
+      if (!googleResponse.ok) {
+        return json({ success: false, message: `Google Script error (${googleResponse.status})` }, { status: googleResponse.status });
       }
 
-      return json({ 
-        success: false, 
-        message: 'Invalid JSON response from Google Script.',
-        debug: responseText.substring(0, 200)
-      }, { status: 502 });
+      try {
+        const result = JSON.parse(responseText);
+        
+        // SAVE TO CACHE: Scope by sourceKey
+        // We use $set for data but preserve hiddenSheetNames if it exists
+        await cache.updateOne(
+          { sourceKey },
+          { 
+            $set: { 
+              sourceKey,
+              scriptUrl,
+              spreadsheetId,
+              data: result,
+              updatedAt: new Date()
+            } 
+          },
+          { upsert: true }
+        );
+        
+        // Fetch hiddenSheetNames to return merged data
+        const entry = await cache.findOne({ sourceKey });
+        const hiddenSheetNames = entry?.hiddenSheetNames || [];
+        const mergedData = result.map((sheet: any) => ({
+          ...sheet,
+          hidden: hiddenSheetNames.includes(sheet.sheetName)
+        }));
+
+        return json(mergedData);
+      } catch (e) {
+        return json({ success: false, message: 'Invalid JSON from Google' }, { status: 502 });
+      }
+    } 
+
+    if (action === 'toggleHide') {
+      const { sheetName, hidden } = payload;
+      if (!sheetName) return json({ success: false, message: 'Missing sheetName' }, { status: 400 });
+
+      if (hidden) {
+        // Add to hidden list
+        await cache.updateOne(
+          { sourceKey },
+          { $addToSet: { hiddenSheetNames: sheetName } },
+          { upsert: true }
+        );
+      } else {
+        // Remove from hidden list
+        await cache.updateOne(
+          { sourceKey },
+          { $pull: { hiddenSheetNames: sheetName } }
+        );
+      }
+      return json({ success: true });
     }
+    
+    if (action === 'update') {
+      const { sheetName, updates } = payload;
+      
+      if (!sheetName || !Array.isArray(updates)) {
+        return json({ success: false, message: 'Missing sheetName or updates array' }, { status: 400 });
+      }
+
+      // A. Update local MongoDB cache first (Optimistic)
+      // We update the entire 'data' array for the specified sheetName within the sourceKey
+      await cache.updateOne(
+        { 
+          sourceKey,
+          "data.sheetName": sheetName 
+        },
+        { 
+          $set: { 
+            "data.$.items": updates.map((u: any) => ({
+              name: u.name,
+              rowIndex: u.rowIndex,
+              values: u.values
+            }))
+          } 
+        }
+      );
+
+      // B. Trigger Google update in the background
+      (async () => {
+        try {
+          await fetch(scriptUrl, {
+            method: 'POST',
+            body: JSON.stringify({ 
+              action: 'update', 
+              sheetName, 
+              updates, 
+              spreadsheetId, 
+              ...payload 
+            })
+          });
+          console.log(`Background bulk sync success for ${sourceKey} -> ${sheetName}`);
+        } catch (err) {
+          console.error(`Background bulk sync FAILED for ${sourceKey}:`, err);
+        }
+      })();
+
+      return json({ success: true, message: 'Sheet updates saved to DB, syncing in background...' });
+    }
+
+    return json({ success: false, message: 'Invalid action' }, { status: 400 });
 
   } catch (error: any) {
     console.error('Google Sheets Proxy Error:', error);

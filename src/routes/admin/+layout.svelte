@@ -198,6 +198,16 @@
 								>
 									WhatsApp
 								</a>
+								<a
+									href="/admin/google-sheets"
+									class="block rounded-md px-3 py-2 text-base font-medium {currentPath ===
+									'/admin/google-sheets'
+										? 'bg-purple-100 text-purple-700'
+										: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}"
+									onclick={() => (isMenuOpen = false)}
+								>
+									Google Sheets
+								</a>
 							</nav>
 
 							<!-- Mobile Home and Logout -->
@@ -259,6 +269,14 @@
 							: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 					>
 						WhatsApp
+					</a>
+					<a
+						href="/admin/google-sheets"
+						class="border-b-2 px-1 py-2 text-sm font-medium {currentPath === '/admin/google-sheets'
+							? 'border-purple-500 text-purple-600'
+							: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+					>
+						Google Sheets
 					</a>
 				</nav>
 			</div>

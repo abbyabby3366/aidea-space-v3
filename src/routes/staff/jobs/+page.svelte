@@ -54,9 +54,12 @@
     }
   }
 
-  async function loadData() {
-    loading = true;
-    error = '';
+  async function loadData(silent = false) {
+    if (!silent) {
+      loading = true;
+      error = '';
+    }
+    
     try {
       const token = localStorage.getItem('authToken');
       const params = new URLSearchParams();
@@ -69,21 +72,39 @@
         }
       });
       if (response.ok) {
-        data = await response.json();
+        const newData = await response.json();
+        if (silent) {
+          // Merge ONLY sync status/meta to avoid overwriting user edits
+          data = data.map(sheet => {
+            const fresh = newData.find((s: any) => s.sheetName === sheet.sheetName);
+            if (fresh) {
+              return {
+                ...sheet,
+                syncStatus: fresh.syncStatus,
+                syncError: fresh.syncError,
+                lastSyncAt: fresh.lastSyncAt
+              };
+            }
+            return sheet;
+          });
+        } else {
+          data = newData;
+        }
       } else {
         const err = await response.json();
-        error = err.message || 'Failed to load data';
+        if (!silent) error = err.message || 'Failed to load data';
       }
     } catch (err) {
       console.error('Failed to load data:', err);
-      error = 'Failed to connect to server';
+      if (!silent) error = 'Failed to connect to server';
     } finally {
-      loading = false;
+      if (!silent) loading = false;
     }
   }
 
   async function syncJob(sheet: any) {
     sheet.syncing = true;
+    sheet.syncStatus = 'syncing'; // Optimistic status
     data = [...data];
     
     // Use the sheet's own source info if available
@@ -93,6 +114,7 @@
     if (!effectiveScriptUrl) {
       showToast('Script URL is missing for this job', 'error');
       sheet.syncing = false;
+      sheet.syncStatus = 'error';
       return;
     }
 
@@ -115,18 +137,41 @@
 
       const result = await response.json();
       if (result.success) {
-        showToast(`Job ${sheet.sheetName} saved and syncing...`, 'success');
+        showToast(result.message || 'Saved to database. Syncing...', 'success');
+        startPolling();
       } else {
         throw new Error(result.message || 'Failed to update');
       }
     } catch (err: any) {
       console.error(err);
+      sheet.syncStatus = 'error';
+      sheet.syncError = err.message;
       showToast('Save failed: ' + err.message, 'error');
     } finally {
       sheet.syncing = false;
       data = [...data]; 
     }
   }
+
+  let pollInterval: any = null;
+  function startPolling() {
+    if (pollInterval) return;
+    pollInterval = setInterval(async () => {
+      const isAnySyncing = data.some(s => s.syncStatus === 'syncing');
+      if (!isAnySyncing) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+        return;
+      }
+      await loadData(true);
+    }, 3000);
+  }
+
+  onMount(() => {
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  });
 
   async function handleFileUpload(sheetIdx: number, itemIdx: number, event: Event) {
     const input = event.target as HTMLInputElement;
@@ -343,9 +388,30 @@
                 </h3>
                 <div class="flex items-center gap-2">
                   <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">{sheet.items.length} Tasks</p>
-                  <span class="text-[9px] font-black px-1.5 py-0.5 rounded {sheet.syncing ? 'bg-amber-100 text-amber-700 animate-pulse' : 'bg-green-100 text-green-700'} uppercase tracking-tight">
-                    {sheet.syncing ? 'Saving...' : 'Saved'}
-                  </span>
+                  {#if sheet.syncStatus === 'syncing'}
+                    <div class="flex items-center gap-1.5 px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full border border-blue-100 animate-pulse">
+                      <div class="h-2 w-2 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                      <span class="text-[8px] font-black uppercase tracking-tight">Syncing...</span>
+                    </div>
+                  {:else if sheet.syncStatus === 'success'}
+                    <div class="flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-600 rounded-full border border-green-100">
+                      <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span class="text-[8px] font-black uppercase tracking-tight">Sync Completed</span>
+                    </div>
+                  {:else if sheet.syncStatus === 'error'}
+                    <div class="flex items-center gap-1 px-2 py-0.5 bg-red-50 text-red-600 rounded-full border border-red-100" title={sheet.syncError}>
+                      <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      <span class="text-[8px] font-black uppercase tracking-tight">Sync Failed</span>
+                    </div>
+                  {:else}
+                    <span class="text-[9px] font-black px-1.5 py-0.5 rounded {sheet.syncing ? 'bg-amber-100 text-amber-700 animate-pulse' : 'bg-green-100 text-green-700'} uppercase tracking-tight">
+                      {sheet.syncing ? 'Saving...' : 'Ready'}
+                    </span>
+                  {/if}
                 </div>
               </div>
             </div>

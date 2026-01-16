@@ -37,14 +37,14 @@
     }
   }
 
-  async function loadCache() {
+  async function loadCache(silent = false) {
     if (!scriptUrl) {
       data = [];
       loading = false;
       return;
     }
 
-    loading = true;
+    if (!silent) loading = true;
     try {
       const token = localStorage.getItem('authToken');
       const params = new URLSearchParams({
@@ -58,7 +58,24 @@
         }
       });
       if (response.ok) {
-        data = await response.json();
+        const newData = await response.json();
+        if (silent) {
+          // Merge ONLY sync status and meta data to avoid overwriting user edits
+          data = data.map(sheet => {
+            const fresh = newData.find((s: any) => s.sheetName === sheet.sheetName);
+            if (fresh) {
+              return {
+                ...sheet,
+                syncStatus: fresh.syncStatus,
+                syncError: fresh.syncError,
+                lastSyncAt: fresh.lastSyncAt
+              };
+            }
+            return sheet;
+          });
+        } else {
+          data = newData;
+        }
       }
     } catch (err) {
       console.error('Failed to load cache:', err);
@@ -215,7 +232,7 @@
         pollInterval = null;
         return;
       }
-      await loadCache();
+      await loadCache(true);
     }, 3000);
   }
 

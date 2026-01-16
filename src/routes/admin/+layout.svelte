@@ -94,7 +94,7 @@
 								/>
 							</svg>
 						</button>
-						<h1 class="text-lg font-bold text-gray-900 sm:text-2xl">Template-App Panel</h1>
+						<h1 class="text-lg font-bold text-gray-900 sm:text-2xl">Aidea-v3</h1>
 						<span
 							class="ml-3 inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800"
 						>

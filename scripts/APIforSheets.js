@@ -25,51 +25,55 @@ const GOOGLE_SHEETS_CONFIG = {
  * @returns {Array<{sheetName: string, items: Array<{name: string, rowIndex: number, values: Array<any>}>}>}
  */
 function fetchSheetsData(spreadsheetId) {
-  const ss = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
-  const sheets = ss.getSheets();
-  const result = [];
-
-  sheets.forEach(sheet => {
-    // 1. Check if sheet is eligible (W10 == TRUE)
-    const isEligible = sheet.getRange(GOOGLE_SHEETS_CONFIG.FILTER_CELL).getValue();
+  try {
+    const ss = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) throw new Error("Could not find/open spreadsheet. Check ID and permissions.");
     
-    if (isEligible === true || String(isEligible).toUpperCase() === 'TRUE') {
-      const sheetData = {
-        sheetName: sheet.getName(),
-        items: []
-      };
+    const sheets = ss.getSheets();
+    const result = [];
 
-      const startRow = GOOGLE_SHEETS_CONFIG.DATA_START_ROW;
-      const numRows = GOOGLE_SHEETS_CONFIG.DATA_END_ROW - GOOGLE_SHEETS_CONFIG.DATA_START_ROW + 1;
+    sheets.forEach(sheet => {
+      // 1. Check if sheet is eligible (W10 == TRUE)
+      const isEligible = sheet.getRange(GOOGLE_SHEETS_CONFIG.FILTER_CELL).getValue();
+      
+      if (isEligible === true || String(isEligible).toUpperCase() === 'TRUE') {
+        const sheetData = {
+          sheetName: sheet.getName(),
+          items: []
+        };
 
-      // 2. Read Name columns (B and D) and Value columns (K to T) in bulk
-      // Column B is 2, D is 4 (offset 0 and 2 from B)
-      const namesRange = sheet.getRange(startRow, 2, numRows, 3).getValues(); // B to D
-      const valuesRange = sheet.getRange(startRow, 11, numRows, 10).getValues(); // K to T
+        const startRow = GOOGLE_SHEETS_CONFIG.DATA_START_ROW;
+        const numRows = GOOGLE_SHEETS_CONFIG.DATA_END_ROW - GOOGLE_SHEETS_CONFIG.DATA_START_ROW + 1;
 
-      for (let i = 0; i < numRows; i++) {
-        const itemName = namesRange[i][0]; // Column B
-        const extraInfo = namesRange[i][2]; // Column D
-        
-        // Only process if there's an item name in column B
-        if (itemName && String(itemName).trim() !== "") {
-          const combinedName = extraInfo ? `${itemName}${GOOGLE_SHEETS_CONFIG.NAME_JOIN_CHAR}${extraInfo}` : itemName;
+        // Bulk read Name and Value columns
+        const namesRange = sheet.getRange(startRow, 2, numRows, 3).getValues(); // B to D
+        const valuesRange = sheet.getRange(startRow, 11, numRows, 10).getValues(); // K to T
+
+        for (let i = 0; i < numRows; i++) {
+          const itemName = namesRange[i][0]; // Column B
+          const extraInfo = namesRange[i][2]; // Column D
           
-          sheetData.items.push({
-            name: combinedName.toString(),
-            rowIndex: startRow + i,
-            values: valuesRange[i]
-          });
+          if (itemName && String(itemName).trim() !== "") {
+            const combinedName = extraInfo ? `${itemName}${GOOGLE_SHEETS_CONFIG.NAME_JOIN_CHAR}${extraInfo}` : itemName;
+            
+            sheetData.items.push({
+              name: combinedName.toString(),
+              rowIndex: startRow + i,
+              values: valuesRange[i]
+            });
+          }
+        }
+
+        if (sheetData.items.length > 0) {
+          result.push(sheetData);
         }
       }
+    });
 
-      if (sheetData.items.length > 0) {
-        result.push(sheetData);
-      }
-    }
-  });
-
-  return result;
+    return result;
+  } catch (e) {
+    throw new Error(`Fetch failed: ${e.toString()}`);
+  }
 }
 
 /**
@@ -79,29 +83,44 @@ function fetchSheetsData(spreadsheetId) {
  * @param {string} [spreadsheetId] Optional spreadsheet ID.
  */
 function updateSheetData(sheetName, updates, spreadsheetId) {
-  const ss = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(sheetName);
-  
-  if (!sheet) {
-    throw new Error(`Sheet "${sheetName}" not found.`);
-  }
+  try {
+    const ss = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) throw new Error("Could not find/open spreadsheet. Ensure the Script has access and the Spreadsheet ID is correct.");
 
-  if (!Array.isArray(updates)) {
-    throw new Error("Updates must be an array.");
-  }
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) throw new Error(`Sheet "${sheetName}" not found. Please ensure the Job Number matches exactly.`);
 
-  // To be efficient, we could group contiguous rows, 
-  // but for 25 rows, individual updates are usually fine in GAS.
-  updates.forEach(update => {
-    if (update.rowIndex && Array.isArray(update.values) && update.values.length === 10) {
-      sheet.getRange(update.rowIndex, 11, 1, 10).setValues([update.values]);
-    }
-  });
-  
-  return {
-    success: true,
-    message: `Updated ${updates.length} items in ${sheetName}`
-  };
+    const startRow = GOOGLE_SHEETS_CONFIG.DATA_START_ROW;
+    const endRow = GOOGLE_SHEETS_CONFIG.DATA_END_ROW;
+    const numRows = endRow - startRow + 1;
+    
+    // Efficiency: Fetch all values first, update in memory, write back once
+    const dataRange = sheet.getRange(startRow, 11, numRows, 10);
+    const gridValues = dataRange.getValues();
+    let changeCount = 0;
+
+    updates.forEach(update => {
+      const internalIdx = update.rowIndex - startRow;
+      if (internalIdx >= 0 && internalIdx < numRows) {
+        if (Array.isArray(update.values) && update.values.length === 10) {
+          gridValues[internalIdx] = update.values;
+          changeCount++;
+        }
+      }
+    });
+
+    dataRange.setValues(gridValues);
+    
+    return {
+      success: true,
+      message: `Successfully updated ${changeCount} rows in ${sheetName}`
+    };
+  } catch (e) {
+    return {
+      success: false,
+      message: e.toString()
+    };
+  }
 }
 
 /**

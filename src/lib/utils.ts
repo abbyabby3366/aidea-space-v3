@@ -49,7 +49,10 @@ export function showToast(
 	const id = (++toastId).toString();
 	const toast: Toast = { id, message, type, duration, persistent };
 
-	toasts.update((toasts) => [...toasts, toast]);
+	toasts.update((currentToasts) => {
+		const updated = currentToasts.length >= 1 ? currentToasts.slice(1) : currentToasts;
+		return [...updated, toast];
+	});
 
 	// Auto-remove toast after duration only if not persistent
 	if (!persistent) {

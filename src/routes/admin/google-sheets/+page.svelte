@@ -166,6 +166,7 @@
     }
     
     sheet.syncing = true;
+    sheet.syncStatus = 'syncing'; // Optimistic local status
     data = [...data];
     
     try {
@@ -187,18 +188,42 @@
 
       const result = await response.json();
       if (result.success) {
-        showToast(`Saved ${sheet.sheetName} to DB and syncing...`, 'success');
+        showToast(result.message || 'Saved to database. Syncing...', 'success');
+        // Start polling if not already started
+        startPolling();
       } else {
         throw new Error(result.message || 'Failed to update');
       }
     } catch (err: any) {
       console.error(err);
+      sheet.syncStatus = 'error';
+      sheet.syncError = err.message;
       showToast('Update failed: ' + err.message, 'error');
     } finally {
       sheet.syncing = false;
       data = [...data]; 
     }
   }
+
+  let pollInterval: any = null;
+  function startPolling() {
+    if (pollInterval) return;
+    pollInterval = setInterval(async () => {
+      const isAnySyncing = data.some(s => s.syncStatus === 'syncing');
+      if (!isAnySyncing) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+        return;
+      }
+      await loadCache();
+    }, 3000);
+  }
+
+  onMount(() => {
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  });
 
   function handleValueChange(sheetIdx: number, itemIdx: number, valIdx: number, event: any) {
     const val = event.target.value;
@@ -366,41 +391,59 @@
                 </div>
               </div>
               
-              <div class="flex items-center gap-2">
-                <button 
-                  on:click={() => toggleHide(sheet)}
-                  class="p-1.5 rounded-lg border border-gray-100 text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-all"
-                  title={sheet.hidden ? 'Show' : 'Hide'}
-                >
-                  {#if sheet.hidden}
-                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  {:else}
-                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.076m1.402-1.42A4.028 4.028 0 0110 5.518a4.91 4.91 0 01.996.06m2.185.734a9.914 9.914 0 011.663.955M12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18" />
-                    </svg>
+                <div class="flex flex-col items-end gap-1">
+                  {#if sheet.syncStatus === 'syncing'}
+                    <div class="flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-600 rounded-full border border-blue-100 animate-pulse">
+                      <div class="h-2 w-2 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                      <span class="text-[10px] font-black uppercase tracking-widest">Syncing to Google...</span>
+                    </div>
+                  {:else if sheet.syncStatus === 'success'}
+                    <div class="flex items-center gap-1 px-3 py-1 bg-green-50 text-green-600 rounded-full border border-green-100">
+                      <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span class="text-[10px] font-black uppercase tracking-widest">Sync Completed</span>
+                    </div>
+                  {:else if sheet.syncStatus === 'error'}
+                    <div class="flex items-center gap-1 px-3 py-1 bg-red-50 text-red-600 rounded-full border border-red-100" title={sheet.syncError}>
+                      <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      <span class="text-[10px] font-black uppercase tracking-widest">Sync Failed</span>
+                    </div>
                   {/if}
-                </button>
 
-                <button 
-                  on:click={() => updateSheet(sheet)}
-                  disabled={sheet.syncing}
-                  class="flex items-center gap-2 px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold transition-all shadow-sm active:scale-95 disabled:opacity-50 text-xs"
-                >
-                  {#if sheet.syncing}
-                    <div class="h-3 w-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    Saving...
-                  {:else}
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                    Save Changes
-                  {/if}
-                </button>
-              </div>
+                  <div class="flex items-center gap-2">
+                    <button 
+                      on:click={() => toggleHide(sheet)}
+                      class="p-1.5 rounded-lg border border-gray-100 text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-all"
+                      title={sheet.hidden ? 'Show' : 'Hide'}
+                    >
+                      {#if sheet.hidden}
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      {:else}
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.076m1.402-1.42A4.028 4.028 0 0110 5.518a4.91 4.91 0 01.996.06m2.185.734a9.914 9.914 0 011.663.955M12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18" />
+                        </svg>
+                      {/if}
+                    </button>
+
+                    <button 
+                      on:click={() => updateSheet(sheet)}
+                      disabled={sheet.syncStatus === 'syncing'}
+                      class="flex items-center gap-2 px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold transition-all shadow-sm active:scale-95 disabled:opacity-50 text-xs"
+                    >
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                      </svg>
+                      Save Changes
+                    </button>
+                  </div>
+                </div>
             </div>
 
             <!-- Table -->

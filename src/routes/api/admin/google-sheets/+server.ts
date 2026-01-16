@@ -215,7 +215,7 @@ export const POST: RequestHandler = async ({ request }) => {
       }
 
       // A. Update local MongoDB cache first (Optimistic)
-      // We update the entire 'data' array for the specified sheetName within the sourceKey
+      // We update data items and set syncStatus to 'syncing'
       await cache.updateOne(
         { 
           sourceKey,
@@ -227,15 +227,19 @@ export const POST: RequestHandler = async ({ request }) => {
               name: u.name,
               rowIndex: u.rowIndex,
               values: u.values
-            }))
+            })),
+            "data.$.syncStatus": 'syncing',
+            "data.$.lastSyncAt": new Date()
           } 
         }
       );
 
-      // B. Trigger Google update in the background
+      // B. Trigger Google update in the background (Non-blocking)
       (async () => {
+        let status = 'success';
+        let errorMsg = null;
         try {
-          await fetch(scriptUrl, {
+          const gResponse = await fetch(scriptUrl, {
             method: 'POST',
             body: JSON.stringify({ 
               action: 'update', 
@@ -245,13 +249,40 @@ export const POST: RequestHandler = async ({ request }) => {
               ...payload 
             })
           });
-          console.log(`Background bulk sync success for ${sourceKey} -> ${sheetName}`);
-        } catch (err) {
-          console.error(`Background bulk sync FAILED for ${sourceKey}:`, err);
+          
+          const responseText = await gResponse.text();
+          console.log(`Async Sync Response for ${sheetName}:`, responseText);
+          
+          if (!gResponse.ok) {
+            status = 'error';
+            errorMsg = `HTTP Error: ${gResponse.status}`;
+          } else {
+            const result = JSON.parse(responseText);
+            if (result.success === false) {
+              status = 'error';
+              errorMsg = result.error || result.message;
+            }
+          }
+        } catch (err: any) {
+          console.error(`Async Sync FAILED for ${sourceKey}:`, err);
+          status = 'error';
+          errorMsg = err.message;
         }
+
+        // Update status in DB
+        await cache.updateOne(
+          { sourceKey, "data.sheetName": sheetName },
+          { 
+            $set: { 
+              "data.$.syncStatus": status,
+              "data.$.syncError": errorMsg,
+              "data.$.lastSyncAt": new Date()
+            } 
+          }
+        );
       })();
 
-      return json({ success: true, message: 'Sheet updates saved to DB, syncing in background...' });
+      return json({ success: true, message: 'Saved to database. Syncing with Google Sheets in background...' });
     }
 
     return json({ success: false, message: 'Invalid action' }, { status: 400 });

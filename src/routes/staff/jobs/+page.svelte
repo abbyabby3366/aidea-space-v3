@@ -141,7 +141,11 @@
 
     try {
       const timestamp = Date.now();
-      const filename = `jobs/${sheet.sheetName}/${item.name}_${timestamp}_${file.name}`;
+      const safeSheetName = encodeURIComponent(sheet.sheetName);
+      const safeItemName = encodeURIComponent(item.name);
+      const safeFileName = encodeURIComponent(file.name);
+      const filename = `jobs/${safeSheetName}/${safeItemName}_${timestamp}_${safeFileName}`;
+      
       const res = await uploadFileToS3(file, filename);
       const url = getS3Url(filename);
       
@@ -151,6 +155,30 @@
     } catch (err: any) {
       console.error(err);
       showToast('Photo upload failed: ' + err.message, 'error');
+    } finally {
+      sheet.syncing = false;
+      data = [...data];
+    }
+  }
+
+  async function clearPhoto(sheetIdx: number, itemIdx: number) {
+    const sheet = data[sheetIdx];
+    const item = sheet.items[itemIdx];
+    
+    if (!confirm(`Are you sure you want to clear the photo for "${item.name}"?`)) {
+      return;
+    }
+
+    sheet.syncing = true;
+    data = [...data];
+
+    try {
+      item.values[PICTURE_INDEX] = '';
+      showToast('Photo link cleared', 'success');
+      await syncJob(sheet);
+    } catch (err: any) {
+      console.error(err);
+      showToast('Clear failed: ' + err.message, 'error');
     } finally {
       sheet.syncing = false;
       data = [...data];
@@ -372,14 +400,26 @@
                             />
                           {:else if vIdx === PICTURE_INDEX}
                             {#if val && val.startsWith('http')}
-                              <a 
-                                href={val} 
-                                target="_blank" 
-                                class="w-full py-2 px-3 rounded-xl bg-blue-50 border-2 border-blue-200 text-blue-600 font-bold text-[10px] flex items-center justify-center gap-2 hover:bg-blue-100 transition-colors"
-                              >
-                                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                                VIEW PHOTO
-                              </a>
+                              <div class="flex items-center gap-2">
+                                <a 
+                                  href={val} 
+                                  target="_blank" 
+                                  class="flex-1 py-2 px-3 rounded-xl bg-blue-50 border-2 border-blue-200 text-blue-600 font-bold text-[10px] flex items-center justify-center gap-2 hover:bg-blue-100 transition-colors"
+                                >
+                                  <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                  VIEW PHOTO
+                                </a>
+                                <button 
+                                  onclick={() => clearPhoto(sIdx, iIdx)}
+                                  class="p-2 rounded-xl bg-red-50 border-2 border-red-100 text-red-500 hover:bg-red-100 hover:border-red-200 transition-all flex-shrink-0"
+                                  title="Clear Photo Link"
+                                  disabled={sheet.syncing}
+                                >
+                                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
                             {:else}
                               <div class="relative">
                                 <input 

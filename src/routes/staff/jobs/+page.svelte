@@ -186,10 +186,7 @@
 
     try {
       const timestamp = Date.now();
-      const safeSheetName = encodeURIComponent(sheet.sheetName);
-      const safeItemName = encodeURIComponent(item.name);
-      const safeFileName = encodeURIComponent(file.name);
-      const filename = `jobs/${safeSheetName}/${safeItemName}_${timestamp}_${safeFileName}`;
+      const filename = `jobs/${sheet.sheetName}/${item.name}_${timestamp}_${file.name}`;
       
       const res = await uploadFileToS3(file, filename);
       const url = getS3Url(filename);

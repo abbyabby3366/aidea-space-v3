@@ -22,13 +22,10 @@ WORKDIR /app
 
 # Copy built assets and necessary files
 COPY --from=builder /app/build ./build
-COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/package*.json ./
 
 # Install only production dependencies
-# Since we use adapter-node, we need the production deps
-# However, many SvelteKit templates bundle dependencies into the build.
-# We'll install production dependencies just in case.
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
 # Set environment variables
 ENV NODE_ENV=production
@@ -39,4 +36,4 @@ ENV HOST=0.0.0.0
 EXPOSE 8080
 
 # Start the application
-CMD ["node", "build"]
+CMD ["node", "build/index.js"]

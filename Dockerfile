@@ -32,10 +32,11 @@ RUN npm install --omit=dev
 
 # Set environment variables
 ENV NODE_ENV=production
-ENV PORT=3181
+ENV PORT=8080
+ENV HOST=0.0.0.0
 
 # Expose the port
-EXPOSE 3181
+EXPOSE 8080
 
 # Start the application
 CMD ["node", "build"]

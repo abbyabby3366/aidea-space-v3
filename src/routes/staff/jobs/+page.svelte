@@ -429,7 +429,14 @@
                 {#each sheet.items as item, iIdx}
                   <div class="p-5 bg-gray-50 rounded-2xl border border-gray-100 space-y-4">
                     <div class="flex items-center justify-between border-b border-gray-200 pb-3 mb-2">
-                      <h4 class="font-black text-gray-900">{item.name}</h4>
+                      <div class="flex items-center gap-3">
+                        {#if item.thumb}
+                          <div class="h-12 w-12 rounded-xl overflow-hidden border-2 border-white shadow-sm bg-white flex-shrink-0">
+                            <img src={item.thumb} alt="Job Preview" class="h-full w-full object-cover" />
+                          </div>
+                        {/if}
+                        <h4 class="font-black text-gray-900">{item.name}</h4>
+                      </div>
                       <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-white px-2 py-1 rounded-lg shadow-sm border border-gray-100">Row {item.rowIndex}</span>
                     </div>
 

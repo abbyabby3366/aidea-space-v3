@@ -352,8 +352,8 @@
     <!-- Stats Card -->
     <div class="bg-gradient-to-br from-purple-700 to-indigo-800 rounded-xl shadow-sm p-3 text-white flex items-center justify-between">
       <div>
-        <p class="text-purple-100 text-[9px] font-bold uppercase tracking-wider">Active Jobs</p>
-        <h4 class="text-xl font-black">{data.filter(s => !s.hidden).length}</h4>
+        <p class="text-white text-[9px] font-bold uppercase tracking-wider">Active Jobs</p>
+        <h4 class="text-xl font-black text-white">{data.filter(s => !s.hidden).length}</h4>
       </div>
       <div class="bg-white/20 p-2 rounded-lg">
         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -468,6 +468,7 @@
               <table class="min-w-full divide-y divide-gray-50">
                 <thead>
                   <tr class="bg-gray-50/30">
+                    <th class="px-4 py-2 text-left text-[9px] font-black text-gray-400 uppercase tracking-widest">Preview</th>
                     <th class="px-4 py-2 text-left text-[9px] font-black text-gray-400 uppercase tracking-widest">Item / Task Name</th>
                     {#each Array(10) as _, i}
                       <th class="px-1 py-2 text-center text-[9px] font-black text-gray-400 uppercase tracking-widest">V{i+1}</th>
@@ -477,6 +478,19 @@
                 <tbody class="divide-y divide-gray-50">
                   {#each sheet.items as item, iIdx}
                     <tr class="hover:bg-purple-50/20 transition-colors group/row">
+                      <td class="px-4 py-1.5 whitespace-nowrap">
+                        {#if item.thumb}
+                          <div class="h-10 w-10 rounded-lg overflow-hidden border border-gray-100 bg-gray-50 flex items-center justify-center">
+                            <img src={item.thumb} alt="Preview" class="h-full w-full object-cover" />
+                          </div>
+                        {:else}
+                          <div class="h-10 w-10 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center">
+                            <svg class="h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                        {/if}
+                      </td>
                       <td class="px-4 py-1.5 whitespace-nowrap">
                         <span class="text-xs font-bold text-gray-700 group-hover/row:text-purple-700 transition-colors">
                           {item.name}

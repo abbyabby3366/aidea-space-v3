@@ -226,7 +226,8 @@ export const POST: RequestHandler = async ({ request }) => {
             "data.$.items": updates.map((u: any) => ({
               name: u.name,
               rowIndex: u.rowIndex,
-              values: u.values
+              values: u.values,
+              thumb: u.thumb
             })),
             "data.$.syncStatus": 'syncing',
             "data.$.lastSyncAt": new Date()

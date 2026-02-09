@@ -16,6 +16,7 @@ const GOOGLE_SHEETS_CONFIG = {
   DATA_END_ROW: 38,
   VALUES_START_COL: 'K', // Column 11
   VALUES_END_COL: 'T',   // Column 20
+  THUMB_COL: 'AG',       // Column 33
   NAME_JOIN_CHAR: ' - '
 };
 
@@ -48,6 +49,13 @@ function fetchSheetsData(spreadsheetId) {
         // Bulk read Name and Value columns
         const namesRange = sheet.getRange(startRow, 2, numRows, 3).getValues(); // B to D
         const valuesRange = sheet.getRange(startRow, 11, numRows, 10).getValues(); // K to T
+        
+        // Ensure the sheet has enough columns for AG (33)
+        const lastCol = sheet.getLastColumn();
+        let thumbRange = new Array(numRows).fill(['']);
+        if (lastCol >= 33) {
+          thumbRange = sheet.getRange(startRow, 33, numRows, 1).getValues(); // AG
+        }
 
         for (let i = 0; i < numRows; i++) {
           const itemName = namesRange[i][0]; // Column B
@@ -59,7 +67,8 @@ function fetchSheetsData(spreadsheetId) {
             sheetData.items.push({
               name: combinedName.toString(),
               rowIndex: startRow + i,
-              values: valuesRange[i]
+              values: valuesRange[i],
+              thumb: thumbRange[i][0] // Column AG
             });
           }
         }

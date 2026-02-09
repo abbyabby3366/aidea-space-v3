@@ -35,10 +35,12 @@
 						goto('/auth');
 					}
 				} else {
+					localStorage.removeItem('authToken');
 					goto('/auth');
 				}
 			} catch (error) {
 				console.error('Error verifying staff status:', error);
+				localStorage.removeItem('authToken');
 				goto('/auth');
 			} finally {
 				loading = false;

@@ -19,6 +19,9 @@
 						goto('/admin');
 						return;
 					}
+				} else if (adminResponse.status === 401) {
+					// Token is invalid or expired, clear it
+					localStorage.removeItem('authToken');
 				}
 			} catch (error) {
 				console.error('Error checking admin status:', error);

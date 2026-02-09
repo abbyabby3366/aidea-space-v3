@@ -25,10 +25,19 @@
 						const data = await response.json();
 						isAdmin = data.isAdmin;
 						adminName = data.user?.name || 'Admin';
+					} else {
+						// Token is invalid, expired, or user is not admin
+						localStorage.removeItem('authToken');
+						localStorage.removeItem('user');
+						isAdmin = false;
 					}
 				} catch (error) {
 					console.error('Error verifying admin status:', error);
+					localStorage.removeItem('authToken');
+					localStorage.removeItem('user');
 				}
+			} else {
+				isAdmin = false;
 			}
 			loading = false;
 		}

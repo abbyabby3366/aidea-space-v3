@@ -46,6 +46,8 @@
 			if (response.ok) {
 				const userData = await response.json();
 				userTier = userData.user?.effectiveMemberTier || userData.user?.memberTier || 'lite';
+			} else if (response.status === 401) {
+				localStorage.removeItem('authToken');
 			}
 		} catch (error) {
 			console.error('Error loading user tier:', error);

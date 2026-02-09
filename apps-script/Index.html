@@ -801,7 +801,7 @@
 
 				status.innerText = 'Saving to Google Sheets...';
 
-				const dataForSheet = pendingData.map((m) => [m.name, m.type, m.res, m.w, m.h]);
+				const dataForSheet = pendingData.map((m) => [m.name, m.type, m.res, m.w, m.h, m.thumb]);
 
 				google.script.run
 

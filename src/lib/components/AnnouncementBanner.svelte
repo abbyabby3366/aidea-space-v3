@@ -54,6 +54,10 @@
 			if (profileResponse.ok) {
 				const profileData = await profileResponse.json();
 				userTier = profileData.user?.effectiveMemberTier || profileData.user?.memberTier || 'lite';
+			} else if (profileResponse.status === 401) {
+				localStorage.removeItem('authToken');
+				loading = false;
+				return;
 			}
 
 			// Fetch banner announcements
@@ -69,6 +73,8 @@
 					...announcement,
 					id: announcement._id
 				}));
+			} else if (response.status === 401) {
+				localStorage.removeItem('authToken');
 			}
 		} catch (error) {
 			console.error('Error loading banner announcements:', error);

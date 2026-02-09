@@ -38,10 +38,21 @@
     const token = localStorage.getItem('authToken');
     if (token) {
       const decoded = parseJwt(token);
+      
+      // Check if token is expired
+      const isExpired = decoded && decoded.exp ? decoded.exp * 1000 < Date.now() : true;
+      
+      if (isExpired) {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+        return;
+      }
+
       if (decoded && decoded.role) {
         goto(getRedirectPath(decoded.role));
       } else {
-        goto('/admin'); // Fallback
+        // If we have a token but no role, it might be an old token or error
+        localStorage.removeItem('authToken');
       }
     }
   });

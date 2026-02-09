@@ -1,0 +1,796 @@
+<!doctype html>
+
+<html lang="en">
+	<head>
+		<base target="_top" />
+
+		<meta charset="UTF-8" />
+
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+		<title>Metadata Extractor Pro</title>
+
+		<script src="https://cdn.jsdelivr.net/npm/exifreader@4.23.3/dist/exif-reader.min.js"></script>
+
+		<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+		<style>
+			body {
+				font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+				margin: 40px;
+				background: #f0f2f5;
+				color: #333;
+			}
+
+			.container {
+				max-width: 1100px;
+				margin: auto;
+				background: white;
+				padding: 30px;
+				border-radius: 12px;
+				box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+			}
+
+			.header-flex {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+
+				border-bottom: 2px solid #3498db;
+				padding-bottom: 15px;
+				margin-bottom: 20px;
+			}
+
+			.job-card {
+				background: #ebf5fb;
+				border: 1px solid #3498db;
+				padding: 8px 16px;
+				border-radius: 8px;
+
+				display: flex;
+				align-items: center;
+				gap: 10px;
+			}
+
+			.job-label {
+				font-size: 12px;
+				color: #2980b9;
+				text-transform: uppercase;
+				font-weight: bold;
+			}
+
+			.job-value {
+				font-size: 18px;
+				color: #2c3e50;
+				font-weight: 800;
+			}
+
+			.job-value[readonly] {
+				background: transparent;
+				border: none;
+				outline: none;
+				cursor: default;
+			}
+
+			.job-value:not([readonly]) {
+				background: white;
+				border: 1px solid #3498db;
+				outline: 1px solid #3498db;
+				cursor: text;
+			}
+
+			.btn-edit {
+				background: #f39c12;
+				color: white;
+				border: none;
+				padding: 4px 8px;
+				border-radius: 4px;
+				cursor: pointer;
+				font-size: 11px;
+				margin-left: 8px;
+				transition: background 0.2s ease;
+			}
+
+			.btn-edit:hover {
+				background: #e67e22;
+			}
+
+			.btn-edit:active {
+				background: #d35400;
+			}
+
+			.upload-area {
+				border: 2px dashed #3498db;
+				padding: 40px;
+				text-align: center;
+				border-radius: 10px;
+
+				cursor: pointer;
+				background: #f9fbff;
+				transition: all 0.3s ease;
+			}
+
+			.upload-area.highlight {
+				background: #e1f5fe;
+				border-color: #2980b9;
+				transform: scale(1.01);
+			}
+
+			.upload-area:hover {
+				background: #ecf5ff;
+				border-color: #2980b9;
+			}
+
+			table {
+				width: 100%;
+				border-collapse: collapse;
+				margin-top: 20px;
+				background: white;
+				display: none;
+			}
+
+			th,
+			td {
+				text-align: left;
+				padding: 12px;
+				border-bottom: 1px solid #eee;
+				font-size: 13px;
+			}
+
+			th {
+				background-color: #3498db;
+				color: white;
+				text-transform: uppercase;
+				cursor: pointer;
+				position: relative;
+			}
+
+			th.sortable:hover {
+				background-color: #2980b9;
+			}
+
+			th.sortable:active {
+				background-color: #21618c;
+			}
+
+			.sort-arrow {
+				display: inline-block;
+				margin-left: 5px;
+				font-size: 10px;
+				opacity: 0.7;
+			}
+
+			.sort-arrow.asc::after {
+				content: '↑';
+			}
+
+			.sort-arrow.desc::after {
+				content: '↓';
+			}
+
+			tr.dragging {
+				opacity: 0.5;
+				background-color: #f0f8ff;
+			}
+
+			tr {
+				cursor: move;
+			}
+
+			tr:hover {
+				background-color: #f5f5f5;
+			}
+
+			.type-badge {
+				padding: 2px 6px;
+				border-radius: 4px;
+				font-size: 10px;
+				font-weight: bold;
+				color: white;
+				background: #95a5a6;
+				text-transform: uppercase;
+			}
+
+			.status {
+				margin: 20px 0;
+				font-weight: bold;
+				color: #2980b9;
+				text-align: center;
+				min-height: 1.2em;
+			}
+
+			.error-text {
+				color: #e74c3c;
+				font-weight: bold;
+			}
+
+			.success-msg {
+				color: #27ae60;
+				font-weight: bold;
+			}
+
+			.btn-delete {
+				background: #ff7675;
+				color: white;
+				border: none;
+				padding: 5px 10px;
+				border-radius: 4px;
+				cursor: pointer;
+				font-size: 11px;
+			}
+
+			.btn-delete:hover {
+				background: #d63031;
+			}
+
+			.controls {
+				text-align: right;
+				margin-top: 20px;
+				display: none;
+				gap: 10px;
+				justify-content: flex-end;
+			}
+
+			.btn-save {
+				padding: 12px 24px;
+				background: #27ae60;
+				color: white;
+				border: none;
+				border-radius: 6px;
+				cursor: pointer;
+				font-weight: bold;
+			}
+
+			.btn-copy {
+				padding: 12px 24px;
+				background: #8e44ad;
+				color: white;
+				border: none;
+				border-radius: 6px;
+				cursor: pointer;
+				font-weight: bold;
+			}
+
+			.btn-clear {
+				padding: 12px 24px;
+				background: #95a5a6;
+				color: white;
+				border: none;
+				border-radius: 6px;
+				cursor: pointer;
+				font-weight: bold;
+			}
+
+			.btn-undo {
+				padding: 12px 24px;
+				background: #e74c3c;
+				color: white;
+				border: none;
+				border-radius: 6px;
+				cursor: pointer;
+				font-weight: bold;
+			}
+
+			.btn-undo:hover {
+				background: #c0392b;
+			}
+
+			.btn-undo:disabled {
+				background: #bdc3c7;
+				cursor: not-allowed;
+			}
+
+			.btn-save:disabled {
+				background: #bdc3c7;
+				cursor: not-allowed;
+			}
+		</style>
+	</head>
+
+	<body>
+		<div class="container">
+			<div class="header-flex">
+				<h2>Metadata Extractor</h2>
+
+				<div class="job-card">
+					<div>
+						<div class="job-label">Active Job Number</div>
+
+						<div style="display: flex; align-items: center">
+							<input
+								type="text"
+								id="jobDisplay"
+								class="job-value"
+								value="<?= jobNumber ?>"
+								readonly
+								style="font-size: 18px; color: #2c3e50; font-weight: 800; width: 100px"
+							/>
+							<button id="editJobBtn" class="btn-edit">Edit</button>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="upload-area" id="dropZone">
+				<strong>Click or Drag Files to Upload</strong><br />
+
+				<small>TIFF, JPG, PNG, WebP, PDF</small>
+
+				<input
+					type="file"
+					id="fileInput"
+					multiple
+					accept=".tif,.tiff,.jpg,.jpeg,.png,.webp,.pdf"
+					style="display: none"
+				/>
+			</div>
+
+			<div id="status" class="status">Ready to process files.</div>
+
+			<table id="resultsTable">
+				<thead>
+					<tr>
+						<th style="width: 80px">Action</th>
+
+						<th class="sortable" onclick="sortByName()">
+							File Name (Clean)<span class="sort-arrow" id="sortArrow"></span>
+						</th>
+
+						<th>Type</th>
+
+						<th>Resolution</th>
+
+						<th>Width (px)</th>
+
+						<th>Height (px)</th>
+					</tr>
+				</thead>
+
+				<tbody id="resultsBody"></tbody>
+			</table>
+
+			<div id="controls" class="controls">
+				<button id="clearBtn" class="btn-clear">Clear List</button>
+
+				<button id="copyBtn" class="btn-copy">Copy Dimensions (2 decimal)</button>
+
+				<button id="finalSaveBtn" class="btn-save">Save to Sheet</button>
+
+				<button id="undoBtn" class="btn-undo" style="display: none">Undo Last Save</button>
+			</div>
+		</div>
+
+		<script>
+			const fileInput = document.getElementById('fileInput');
+
+			const dropZone = document.getElementById('dropZone');
+
+			const resultsBody = document.getElementById('resultsBody');
+
+			const status = document.getElementById('status');
+
+			const resultsTable = document.getElementById('resultsTable');
+
+			const controls = document.getElementById('controls');
+
+			const finalSaveBtn = document.getElementById('finalSaveBtn');
+
+			const undoBtn = document.getElementById('undoBtn');
+
+			const clearBtn = document.getElementById('clearBtn');
+
+			const editJobBtn = document.getElementById('editJobBtn');
+
+			const jobDisplayInput = document.getElementById('jobDisplay');
+
+			let currentJob = jobDisplayInput.value;
+
+			let pendingData = [];
+
+			let sortDirection = null; // null, 'asc', 'desc'
+
+			let draggedRow = null;
+			let draggedIndex = -1;
+
+			// Handle edit button click
+			editJobBtn.addEventListener('click', function () {
+				jobDisplayInput.removeAttribute('readonly');
+				jobDisplayInput.focus();
+				jobDisplayInput.select();
+			});
+
+			// Handle input blur (commit changes)
+			jobDisplayInput.addEventListener('blur', function () {
+				this.setAttribute('readonly', 'readonly');
+				currentJob = this.value;
+				finalSaveBtn.textContent = currentJob ? `Save to Sheet ${currentJob}` : 'Save to Sheet';
+			});
+
+			// Handle Enter key to commit changes
+			jobDisplayInput.addEventListener('keydown', function (e) {
+				if (e.key === 'Enter') {
+					this.blur(); // Trigger blur to commit changes
+				}
+			});
+
+			// Initialize button text
+			finalSaveBtn.textContent = currentJob ? `Save to Sheet ${currentJob}` : 'Save to Sheet';
+
+			// Drag & Drop
+
+			['dragenter', 'dragover', 'dragleave', 'drop'].forEach((name) => {
+				dropZone.addEventListener(
+					name,
+					(e) => {
+						e.preventDefault();
+						e.stopPropagation();
+					},
+					false
+				);
+			});
+
+			['dragenter', 'dragover'].forEach((name) =>
+				dropZone.addEventListener(name, () => dropZone.classList.add('highlight'), false)
+			);
+
+			['dragleave', 'drop'].forEach((name) =>
+				dropZone.addEventListener(name, () => dropZone.classList.remove('highlight'), false)
+			);
+
+			dropZone.addEventListener('drop', (e) => handleFiles(e.dataTransfer.files), false);
+
+			// Manual Click
+
+			dropZone.onclick = () => fileInput.click();
+
+			fileInput.onchange = (e) => {
+				handleFiles(e.target.files);
+			};
+
+			async function getImageDimensions(file) {
+				return new Promise((resolve) => {
+					const img = new Image();
+
+					img.onload = () => {
+						resolve({ w: img.width, h: img.height });
+
+						URL.revokeObjectURL(img.src);
+					};
+
+					img.onerror = () => resolve({ w: 0, h: 0 });
+
+					img.src = URL.createObjectURL(file);
+				});
+			}
+
+			async function handleFiles(files) {
+				if (!files || files.length === 0) return;
+
+				resultsTable.style.display = 'table';
+
+				controls.style.display = 'flex';
+
+				status.innerHTML = 'Processing files...';
+
+				for (let i = 0; i < files.length; i++) {
+					const file = files[i];
+
+					const cleanName = file.name.replace(/\.[^/.]+$/, '');
+
+					let meta = {
+						name: cleanName,
+
+						type: file.name.split('.').pop().toUpperCase(),
+
+						res: 72,
+
+						w: 0,
+
+						h: 0
+					};
+
+					try {
+						if (file.type === 'application/pdf') {
+							const arrayBuffer = await file.arrayBuffer();
+
+							const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+
+							const page = pdfDoc.getPages()[0];
+
+							meta.w = Math.round(page.getSize().width);
+
+							meta.h = Math.round(page.getSize().height);
+
+							meta.res = 72;
+						} else {
+							const tags = await ExifReader.load(file, { expanded: true });
+
+							const xResData =
+								tags['exif']?.['XResolution'] ||
+								tags['jfif']?.['XResolution'] ||
+								tags['png']?.['pHYs']?.XResolution ||
+								tags['file']?.['XResolution'];
+
+							meta.res = cleanResolution(xResData);
+
+							let w =
+								tags['png']?.['Image Width']?.value ||
+								tags['exif']?.['PixelXDimension']?.value ||
+								tags['file']?.['Image Width']?.value ||
+								0;
+
+							let h =
+								tags['png']?.['Image Height']?.value ||
+								tags['exif']?.['PixelYDimension']?.value ||
+								tags['file']?.['Image Height']?.value ||
+								0;
+
+							if (w === 0 || h === 0) {
+								const dims = await getImageDimensions(file);
+
+								w = dims.w;
+								h = dims.h;
+							}
+
+							meta.w = w;
+							meta.h = h;
+						}
+
+						pendingData.push(meta);
+
+						renderTable();
+					} catch (e) {
+						console.error(e);
+					}
+				}
+
+				status.innerText = 'Files loaded.';
+			}
+
+			function sortByName() {
+				// Cycle through sort states: null -> asc -> desc -> null
+				if (sortDirection === null) {
+					sortDirection = 'asc';
+				} else if (sortDirection === 'asc') {
+					sortDirection = 'desc';
+				} else {
+					sortDirection = null;
+				}
+
+				// Update sort arrow visual
+				const sortArrow = document.getElementById('sortArrow');
+				if (sortDirection === 'asc') {
+					sortArrow.className = 'sort-arrow asc';
+				} else if (sortDirection === 'desc') {
+					sortArrow.className = 'sort-arrow desc';
+				} else {
+					sortArrow.className = 'sort-arrow';
+				}
+
+				// Apply sorting
+				if (sortDirection !== null) {
+					pendingData.sort((a, b) => {
+						const nameA = a.name.toLowerCase();
+						const nameB = b.name.toLowerCase();
+						if (sortDirection === 'asc') {
+							return nameA.localeCompare(nameB);
+						} else {
+							return nameB.localeCompare(nameA);
+						}
+					});
+				}
+
+				renderTable();
+			}
+
+			function handleDragStart(e) {
+				draggedRow = e.target.closest('tr');
+				draggedIndex = parseInt(draggedRow.dataset.index);
+				draggedRow.classList.add('dragging');
+				e.dataTransfer.effectAllowed = 'move';
+				e.dataTransfer.setData('text/html', draggedRow.outerHTML);
+			}
+
+			function handleDragOver(e) {
+				e.preventDefault();
+				e.dataTransfer.dropEffect = 'move';
+
+				const targetRow = e.target.closest('tr');
+				if (targetRow && targetRow !== draggedRow) {
+					const tbody = resultsBody;
+					const rows = Array.from(tbody.children);
+					const targetIndex = rows.indexOf(targetRow);
+
+					if (draggedIndex < targetIndex) {
+						tbody.insertBefore(draggedRow, targetRow.nextSibling);
+					} else {
+						tbody.insertBefore(draggedRow, targetRow);
+					}
+				}
+			}
+
+			function handleDragEnd(e) {
+				draggedRow.classList.remove('dragging');
+
+				// Rebuild pendingData array to match current DOM order
+				const rows = Array.from(resultsBody.children);
+				const newPendingData = [];
+				
+				rows.forEach(row => {
+					const oldIndex = parseInt(row.dataset.index);
+					newPendingData.push(pendingData[oldIndex]);
+				});
+				
+				// Replace pendingData with the new order
+				pendingData = newPendingData;
+				
+				// Re-render to update all dataset.index values
+				renderTable();
+
+				draggedRow = null;
+				draggedIndex = -1;
+			}
+
+			function renderTable() {
+				resultsBody.innerHTML = '';
+
+				pendingData.forEach((m, i) => {
+					const row = document.createElement('tr');
+					row.draggable = true;
+					row.dataset.index = i;
+					row.addEventListener('dragstart', handleDragStart);
+					row.addEventListener('dragover', handleDragOver);
+					row.addEventListener('dragend', handleDragEnd);
+
+					row.innerHTML = `
+                    <td><button class="btn-delete" onclick="removeRecord(${i})">Delete</button></td>
+
+                    <td>${m.name}</td>
+
+                    <td><span class="type-badge">${m.type}</span></td>
+
+                    <td>${m.res} DPI</td>
+
+                    <td>${m.w}</td>
+
+                    <td>${m.h}</td>
+                `;
+
+					resultsBody.appendChild(row);
+				});
+
+				if (pendingData.length === 0) {
+					resultsTable.style.display = 'none';
+
+					controls.style.display = 'none';
+				}
+			}
+
+			function removeRecord(index) {
+				pendingData.splice(index, 1);
+
+				renderTable();
+			}
+
+			// --- FIXED CLEAR LOGIC ---
+
+			clearBtn.onclick = () => {
+				pendingData = [];
+
+				fileInput.value = ''; // This is the crucial fix
+
+				renderTable();
+
+				// Reset save/undo button states
+				finalSaveBtn.style.display = 'inline-block';
+				finalSaveBtn.disabled = false;
+				undoBtn.style.display = 'none';
+				delete window.lastSaveResult;
+
+				status.innerText = 'List cleared. Ready for new files.';
+			};
+
+			document.getElementById('copyBtn').onclick = () => {
+				const textToCopy = pendingData
+					.map((m) => {
+						const wInch = (m.w / m.res).toFixed(2);
+
+						const hInch = (m.h / m.res).toFixed(2);
+
+						return `${m.name}\t\t${wInch}" x ${hInch}"`;
+					})
+					.join('\n');
+
+				navigator.clipboard.writeText(textToCopy).then(() => {
+					const originalMsg = status.innerHTML;
+
+					status.innerHTML = '<span class="success-msg">✔ Copied to clipboard!</span>';
+
+					setTimeout(() => (status.innerHTML = originalMsg), 3000);
+				});
+			};
+
+			finalSaveBtn.onclick = () => {
+				if (pendingData.length === 0) return;
+
+				finalSaveBtn.disabled = true;
+
+				status.innerText = 'Saving to Google Sheets...';
+
+				const dataForSheet = pendingData.map((m) => [m.name, m.type, m.res, m.w, m.h]);
+
+				google.script.run
+
+					.withSuccessHandler((result) => {
+						status.innerHTML = `<span class="success-msg">✔ ${result.message}</span>`;
+
+						// Hide save button and show undo button
+						finalSaveBtn.style.display = 'none';
+						undoBtn.style.display = 'inline-block';
+
+						// Store the undo data for later use
+						window.lastSaveResult = result;
+					})
+
+					.withFailureHandler((err) => {
+						status.innerHTML = `<span class="error-text">Upload Failed: ${err}</span>`;
+
+						finalSaveBtn.disabled = false;
+					})
+
+					.saveMetadataToSheet(dataForSheet, currentJob);
+
+				undoBtn.onclick = () => {
+					if (!window.lastSaveResult) return;
+
+					undoBtn.disabled = true;
+					status.innerText = 'Undoing last save...';
+
+					google.script.run
+						.withSuccessHandler((msg) => {
+							status.innerHTML = `<span class="success-msg">✔ ${msg}</span>`;
+
+							// Show save button and hide undo button
+							finalSaveBtn.style.display = 'inline-block';
+							finalSaveBtn.disabled = false;
+							finalSaveBtn.textContent = currentJob
+								? `Save to Sheet ${currentJob}`
+								: 'Save to Sheet';
+							undoBtn.style.display = 'none';
+							undoBtn.disabled = false;
+
+							// Clear the stored undo data
+							delete window.lastSaveResult;
+						})
+						.withFailureHandler((err) => {
+							status.innerHTML = `<span class="error-text">Undo Failed: ${err}</span>`;
+							undoBtn.disabled = false;
+						})
+						.undoLastSave(window.lastSaveResult);
+				};
+			};
+
+			function cleanResolution(tag) {
+				if (!tag) return 72;
+
+				const val = tag.value !== undefined ? tag.value : tag;
+
+				if (Array.isArray(val) && val.length === 2) {
+					const calc = val[0] / val[1];
+
+					return calc > 0 ? Math.round(calc) : 72;
+				}
+
+				if (Array.isArray(val)) {
+					const n = parseFloat(val[0]);
+
+					return !isNaN(n) && n > 0 ? Math.round(n) : 72;
+				}
+
+				const n = parseFloat(val);
+
+				return !isNaN(n) && n > 0 ? Math.round(n) : 72;
+			}
+		</script>
+	</body>
+</html>
